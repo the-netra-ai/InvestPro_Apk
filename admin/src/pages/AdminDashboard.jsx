@@ -170,6 +170,11 @@ export default function AdminDashboard({ onLogout }) {
   const [adminHistoryPage, setAdminHistoryPage] = useState(0);
   const [pendingInvPage, setPendingInvPage] = useState(0);
   const [pendingWithdrawPage, setPendingWithdrawPage] = useState(0);
+  const [openFilter, setOpenFilter] = useState(null); // 'wdType' | 'wdStatus' | 'invPayment' | 'invStatus' | null
+  const [wdTypeFilter, setWdTypeFilter] = useState("");
+  const [wdStatusFilter, setWdStatusFilter] = useState("");
+  const [invPaymentFilter, setInvPaymentFilter] = useState("");
+  const [invStatusFilter, setInvStatusFilter] = useState("");
 
   const loadPending = async () => {
     try {
@@ -254,6 +259,16 @@ export default function AdminDashboard({ onLogout }) {
     return [...(Array.isArray(adminHistory) ? adminHistory : [])].sort((a, b) => pickTs(b) - pickTs(a));
   }, [adminHistory]);
 
+  useEffect(() => {
+    const onDown = (e) => {
+      const el = e.target;
+      if (el?.closest?.("[data-filter-root='true']")) return;
+      setOpenFilter(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
   const stats = useMemo(() => ({
     totalUsers: statsData?.totalUsers ?? statsData?.total_users ?? 0,
     activeInvestments: statsData?.activeInvestments ?? statsData?.active_investments ?? 0,
@@ -277,6 +292,11 @@ export default function AdminDashboard({ onLogout }) {
     [allWithdrawals]
   );
 
+  const investmentHistory = useMemo(
+    () => adminHistorySorted.filter((row) => !isWithdrawalRow(row)),
+    [adminHistorySorted]
+  );
+
   const PAGE_SIZE = 10;
   const PENDING_PAGE_SIZE = 5;
   const pagedWithdrawalHistory = useMemo(() => {
@@ -285,10 +305,10 @@ export default function AdminDashboard({ onLogout }) {
   }, [withdrawalHistory, earningsPage]);
   const pagedAdminHistory = useMemo(() => {
     const start = adminHistoryPage * PAGE_SIZE;
-    return adminHistorySorted.slice(start, start + PAGE_SIZE);
-  }, [adminHistorySorted, adminHistoryPage]);
+    return investmentHistory.slice(start, start + PAGE_SIZE);
+  }, [investmentHistory, adminHistoryPage]);
   const totalEarningsPages = Math.max(1, Math.ceil(withdrawalHistory.length / PAGE_SIZE));
-  const totalAdminHistoryPages = Math.max(1, Math.ceil(adminHistorySorted.length / PAGE_SIZE));
+  const totalAdminHistoryPages = Math.max(1, Math.ceil(investmentHistory.length / PAGE_SIZE));
   const pagedPendingInvestments = useMemo(() => {
     const start = pendingInvPage * PENDING_PAGE_SIZE;
     return pending.slice(start, start + PENDING_PAGE_SIZE);
@@ -306,7 +326,7 @@ export default function AdminDashboard({ onLogout }) {
 
   useEffect(() => {
     setAdminHistoryPage(0);
-  }, [adminHistorySorted.length]);
+  }, [investmentHistory.length]);
 
   useEffect(() => {
     setPendingInvPage(0);
@@ -358,6 +378,150 @@ export default function AdminDashboard({ onLogout }) {
     } finally {
       markProcessing(id, false);
     }
+  };
+
+  const uniqueOptions = (rows, getter) => {
+    const set = new Set();
+    for (const r of rows) {
+      const v = String(getter(r) || "").trim();
+      if (v) set.add(v);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  };
+
+  const wdTypeOptions = useMemo(
+    () => uniqueOptions(withdrawalHistory, (r) => (r.type || r.withdraw_type || r.withdrawal_type || "")).map((s) => s.toLowerCase()),
+    [withdrawalHistory]
+  );
+  const wdStatusOptions = useMemo(
+    () => uniqueOptions(withdrawalHistory, (r) => getStatus(r)).map((s) => s.toLowerCase()),
+    [withdrawalHistory]
+  );
+  const invPaymentOptions = useMemo(
+    () => uniqueOptions(investmentHistory, (r) => (r.payment_method || r.paymentMethod || "")),
+    [investmentHistory]
+  );
+  const invStatusOptions = useMemo(
+    () => uniqueOptions(investmentHistory, (r) => getStatus(r)).map((s) => s.toLowerCase()),
+    [investmentHistory]
+  );
+
+  const filteredWithdrawalHistory = useMemo(() => {
+    return withdrawalHistory.filter((r) => {
+      const t = String(r?.type || r?.withdraw_type || r?.withdrawal_type || "").toLowerCase();
+      const st = getStatus(r);
+      if (wdTypeFilter && t !== wdTypeFilter) return false;
+      if (wdStatusFilter && st !== wdStatusFilter) return false;
+      return true;
+    });
+  }, [withdrawalHistory, wdStatusFilter, wdTypeFilter]);
+
+  const filteredInvestmentHistory = useMemo(() => {
+    return investmentHistory.filter((r) => {
+      const pay = String(r?.payment_method || r?.paymentMethod || "").trim();
+      const st = getStatus(r);
+      if (invPaymentFilter && pay !== invPaymentFilter) return false;
+      if (invStatusFilter && st !== invStatusFilter) return false;
+      return true;
+    });
+  }, [investmentHistory, invPaymentFilter, invStatusFilter]);
+
+  const pagedFilteredWithdrawalHistory = useMemo(() => {
+    const start = earningsPage * PAGE_SIZE;
+    return filteredWithdrawalHistory.slice(start, start + PAGE_SIZE);
+  }, [filteredWithdrawalHistory, earningsPage]);
+  const totalFilteredWithdrawalPages = Math.max(1, Math.ceil(filteredWithdrawalHistory.length / PAGE_SIZE));
+
+  const pagedFilteredInvestmentHistory = useMemo(() => {
+    const start = adminHistoryPage * PAGE_SIZE;
+    return filteredInvestmentHistory.slice(start, start + PAGE_SIZE);
+  }, [filteredInvestmentHistory, adminHistoryPage]);
+  const totalFilteredInvestmentPages = Math.max(1, Math.ceil(filteredInvestmentHistory.length / PAGE_SIZE));
+
+  useEffect(() => {
+    setEarningsPage(0);
+  }, [wdTypeFilter, wdStatusFilter]);
+
+  useEffect(() => {
+    setAdminHistoryPage(0);
+  }, [invPaymentFilter, invStatusFilter]);
+
+  const FilterArrow = ({ id, options, value, onChange }) => {
+    return (
+      <span data-filter-root="true" style={{ position: "relative", display: "inline-block", marginLeft: 6 }}>
+        <button
+          type="button"
+          className="icon-btn"
+          style={{ width: 22, height: 22, padding: 0, minWidth: 22 }}
+          aria-label="Filter"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenFilter((prev) => (prev === id ? null : id));
+          }}
+        >
+          <span style={{ fontSize: 11, lineHeight: 1, opacity: 0.9 }}>▼</span>
+        </button>
+        {openFilter === id ? (
+          <div
+            style={{
+              position: "absolute",
+              top: 26,
+              right: 0,
+              minWidth: 140,
+              zIndex: 50,
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.14)",
+              background: "rgba(12, 20, 42, 0.98)",
+              overflow: "hidden"
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                onChange("");
+                setOpenFilter(null);
+              }}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "10px 12px",
+                background: value ? "transparent" : "rgba(0,255,198,0.10)",
+                color: "#f8fbff",
+                border: "none",
+                cursor: "pointer"
+              }}
+            >
+              All
+            </button>
+            {options.map((opt) => {
+              const selected = String(value || "") === String(opt || "");
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt);
+                    setOpenFilter(null);
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    background: selected ? "rgba(0,255,198,0.10)" : "transparent",
+                    color: "#f8fbff",
+                    border: "none",
+                    cursor: "pointer",
+                    textTransform: "capitalize"
+                  }}
+                >
+                  {String(opt)}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </span>
+    );
   };
 
   return (
@@ -573,13 +737,29 @@ export default function AdminDashboard({ onLogout }) {
                   <th>User name</th>
                   <th>User email</th>
                   <th>Amount</th>
-                  <th>Type</th>
-                  <th>Status</th>
+                  <th>
+                    Type
+                    <FilterArrow
+                      id="wdType"
+                      options={wdTypeOptions}
+                      value={wdTypeFilter}
+                      onChange={setWdTypeFilter}
+                    />
+                  </th>
+                  <th>
+                    Status
+                    <FilterArrow
+                      id="wdStatus"
+                      options={wdStatusOptions}
+                      value={wdStatusFilter}
+                      onChange={setWdStatusFilter}
+                    />
+                  </th>
                   <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {pagedWithdrawalHistory.map((row, index) => (
+                {pagedFilteredWithdrawalHistory.map((row, index) => (
                   <tr key={`${getRowId(row) || "withdraw"}-${index}-${earningsPage}`}>
                     <td>{getUserName(row)}</td>
                     <td>{getUserEmail(row)}</td>
@@ -589,7 +769,7 @@ export default function AdminDashboard({ onLogout }) {
                     <td>{formatDateOnly(row.created_at || row.createdAt || row.date || row.updated_at || row.updatedAt)}</td>
                   </tr>
                 ))}
-                {pagedWithdrawalHistory.length === 0 && (
+                {pagedFilteredWithdrawalHistory.length === 0 && (
                   <tr>
                     <td colSpan="6" className="empty-state">
                       No withdrawal history available.
@@ -608,12 +788,12 @@ export default function AdminDashboard({ onLogout }) {
                 Back
               </button>
               <span style={{ alignSelf: "center", fontSize: 12, opacity: 0.85 }}>
-                Page {Math.min(earningsPage + 1, totalEarningsPages)} / {totalEarningsPages}
+                Page {Math.min(earningsPage + 1, totalFilteredWithdrawalPages)} / {totalFilteredWithdrawalPages}
               </span>
               <button
                 className="btn btn-main mini-btn"
-                onClick={() => setEarningsPage((p) => (p + 1 < totalEarningsPages ? p + 1 : p))}
-                disabled={earningsPage + 1 >= totalEarningsPages}
+                onClick={() => setEarningsPage((p) => (p + 1 < totalFilteredWithdrawalPages ? p + 1 : p))}
+                disabled={earningsPage + 1 >= totalFilteredWithdrawalPages}
                 style={{ width: "auto", minWidth: 90, padding: "6px 14px" }}
               >
                 Next
@@ -642,14 +822,30 @@ export default function AdminDashboard({ onLogout }) {
                   <th>Plan</th>
                   <th>Amount</th>
                   <th>Profit</th>
-                  <th>Payment</th>
+                  <th>
+                    Payment
+                    <FilterArrow
+                      id="invPayment"
+                      options={invPaymentOptions}
+                      value={invPaymentFilter}
+                      onChange={setInvPaymentFilter}
+                    />
+                  </th>
                   <th>UTR</th>
-                  <th>Status</th>
+                  <th>
+                    Status
+                    <FilterArrow
+                      id="invStatus"
+                      options={invStatusOptions}
+                      value={invStatusFilter}
+                      onChange={setInvStatusFilter}
+                    />
+                  </th>
                   <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {pagedAdminHistory.map((row, idx) => {
+                {pagedFilteredInvestmentHistory.map((row, idx) => {
                   const userName = getUserName(row);
                   const userEmail = getUserEmail(row);
                   const planOrType = isWithdrawalRow(row)
@@ -658,7 +854,6 @@ export default function AdminDashboard({ onLogout }) {
                   const payment = String(row.payment_method || row.paymentMethod || "-");
                   const utr = String(row.utr || row.reference || row.txn_ref || "-");
                   const status = getStatus(row) || "pending";
-                  const date = formatDateTime(row.created_at || row.createdAt || row.date || row.updated_at || row.updatedAt);
 
                   return (
                     <tr key={`${getRowId(row) || "row"}-${idx}-${adminHistoryPage}`}>
@@ -674,7 +869,7 @@ export default function AdminDashboard({ onLogout }) {
                     </tr>
                   );
                 })}
-                {pagedAdminHistory.length === 0 && (
+                {pagedFilteredInvestmentHistory.length === 0 && (
                   <tr>
                     <td colSpan="9" className="empty-state">
                       No history available.
@@ -693,12 +888,12 @@ export default function AdminDashboard({ onLogout }) {
                 Back
               </button>
               <span style={{ alignSelf: "center", fontSize: 12, opacity: 0.85 }}>
-                Page {Math.min(adminHistoryPage + 1, totalAdminHistoryPages)} / {totalAdminHistoryPages}
+                Page {Math.min(adminHistoryPage + 1, totalFilteredInvestmentPages)} / {totalFilteredInvestmentPages}
               </span>
               <button
                 className="btn btn-main mini-btn"
-                onClick={() => setAdminHistoryPage((p) => (p + 1 < totalAdminHistoryPages ? p + 1 : p))}
-                disabled={adminHistoryPage + 1 >= totalAdminHistoryPages}
+                onClick={() => setAdminHistoryPage((p) => (p + 1 < totalFilteredInvestmentPages ? p + 1 : p))}
+                disabled={adminHistoryPage + 1 >= totalFilteredInvestmentPages}
                 style={{ width: "auto", minWidth: 90, padding: "6px 14px" }}
               >
                 Next
