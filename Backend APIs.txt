@@ -1,0 +1,94 @@
+Backend APIs are ready for integration.
+
+**Base URL**
+
+* Production: https://invpro.onrender.com
+* Frontend domain: https://www.adptai.in
+
+**Auth Type**
+
+* HttpOnly Cookie Session (no JWT)
+
+**IMPORTANT (Must follow)**
+
+* Always send requests with:
+
+```js
+credentials: "include"
+```
+
+* Headers:
+
+```js
+Content-Type: application/json
+```
+
+**Response Format**
+
+* Success:
+
+```json
+{ "success": true, "message": "ok", "data": {} }
+```
+
+* Error:
+
+```json
+{ "success": false, "message": "error", "errors": {} }
+```
+
+**Auth Flow**
+
+1. `POST /api/register`
+2. `POST /api/login` → sets session cookie
+3. Use APIs (cookie auto sent)
+4. `POST /api/logout`
+
+**User APIs**
+
+* `GET /api/schemes`
+* `POST /api/invest`
+* `GET /api/history`
+* `POST /api/withdraw`
+* `GET /api/payment-info`
+
+**Admin APIs**
+
+* `GET /api/admin/pending`
+* `POST /api/admin/approve/:id`
+* `POST /api/admin/reject/:id`
+* `POST /api/admin/profit/:id`
+* `GET /api/admin/stats`
+
+**Enums**
+
+* Investment: `pending | active | completed | rejected`
+* Withdraw: `pending`
+* Role: `user | admin`
+* Payment method: `upi | qr | bank`
+* Withdraw type: `profit | capital`
+
+**Important Notes**
+
+* `/api/invest` requires:
+
+  * `scheme_id`
+  * `consent`
+  * `payment_method`
+  * `utr`
+
+* `/api/withdraw` requires:
+
+  * `amount`
+  * `type`
+
+* Admin APIs require admin login
+
+**CORS**
+
+* Already configured for: https://www.adptai.in
+
+If anything fails due to cookies, let me know immediately (cross-domain sessions need correct handling).
+But ALSO make sure:
+
+Frontend uses credentials: "include"

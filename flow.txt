@@ -1,0 +1,133 @@
+Hi, I wanted to share the finalized workflow for the mobile application so the UI aligns with backend logic.
+
+1. Authentication Flow
+
+User registers or logs in
+Session is created
+User is redirected to the dashboard
+
+2. Investment Flow
+
+User selects an investment plan
+Show plan details screen
+Display consent form (Terms and Conditions)
+User must read and accept terms
+Checkbox: “I agree to the terms and conditions”
+Proceed button must remain disabled until checked
+After consent is accepted:
+Navigate to payment screen
+Show payment options (UPI / QR / Bank Transfer)
+User enters payment reference (UTR is mandatory)
+On submission:
+Investment is created with status = pending
+Admin reviews the request:
+Approved → status = active
+Rejected → status = rejected
+Investment should appear in Investment History with status
+
+3. Dashboard (User)
+Display the following:
+Total investments
+Active investments
+Expected profit
+Recent transactions
+
+Sections:
+Investment History
+Withdrawal History
+
+4. Withdrawal Flow
+User selects withdrawal type (profit or capital)
+User enters amount
+Submit request → status = pending
+Admin reviews:
+Approved → status = approved
+Rejected → status = rejected
+After approval:
+Final status should be updated to paid once processed
+
+5. Withdrawal Status Handling
+pending: request submitted
+approved: admin accepted
+paid: amount processed
+rejected: request denied
+
+All statuses must be clearly visible in Withdrawal History.
+
+6. Important Rules
+Investment must not be allowed without consent acceptance
+Submit button must be disabled until consent is checked
+UTR / payment reference is mandatory
+Unauthorized users cannot access any protected APIs
+All actions must be reflected in history screens
+
+7. Screens Required
+Login / Register
+Dashboard
+Plan Selection
+Consent Screen
+Payment Screen
+Investment History
+Withdrawal Request
+Withdrawal History
+
+Hi, I want to clarify the difference between Admin History and User History so the UI can be designed correctly.
+
+1. User History (For normal users)
+This should show only the logged-in user’s own data.
+
+Investment History:
+Plan name
+Amount
+Expected profit
+Status (pending / active / rejected)
+Created date
+
+Withdrawal History:
+Amount
+Type (profit / capital)
+Status (pending / approved / paid / rejected)
+Created date
+
+Users must NOT see any other users’ data.
+
+2. Admin History (For admin panel)
+This should show data of ALL users.
+
+Investment History (Admin View):
+User name
+User email
+Plan name
+Amount
+Expected profit
+Payment method
+UTR / reference
+Status
+Created date
+
+Withdrawal History (Admin View):
+User name
+User email
+Amount
+Type (profit / capital)
+Status
+Created date
+
+Admin should be able to:
+Approve / reject investments
+Approve / reject withdrawals
+Mark withdrawals as paid
+
+3. UI Behavior Difference
+User app:
+Shows only personal history
+No admin controls
+Admin panel:
+Shows all users
+Includes action buttons (approve, reject, mark paid)
+
+4. API Mapping
+User History:
+GET /api/history
+Admin History:
+GET /api/admin/history
